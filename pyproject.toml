@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flash-attn-mps"
+dynamic = ["version"]
+description = "Native Metal FlashAttention inference for PyTorch MPS"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE", "LICENSES/*"]
+authors = [{name = "SuperMarioYL"}]
+dependencies = ["torch>=2.14"]
+classifiers = [
+  "Operating System :: MacOS :: MacOS X",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "numpy>=1.26"]
+
+[project.urls]
+Repository = "https://github.com/SuperMarioYL/flash-attn-mps"
+Issues = "https://github.com/SuperMarioYL/flash-attn-mps/issues"
+
+[tool.setuptools.packages.find]
+include = ["flash_attn_mps*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "flash_attn_mps.__version__"}
+
+[tool.setuptools.package-data]
+flash_attn_mps = ["kernels/*.metal", "kernels/vendor/*.metal"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["mps: requires a real Apple Silicon MPS device"]

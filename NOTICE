@@ -1,0 +1,19 @@
+flash-attn-mps
+Copyright 2026 flash-attn-mps contributors.
+
+The vendored Metal tiled attention foundation originates from:
+  kernels-community/metal-flash-sdpa
+  revision 18ac973ffd57f334b7a09fbd126212e435299047
+  sdpa-metal/scaled_dot_product_attention.metal
+  https://huggingface.co/kernels-community/metal-flash-sdpa
+  Apache License 2.0
+
+That source incorporates Apple MLX/STEEL implementation material.
+Copyright (c) 2023-2026 Apple Inc. and MLX contributors.
+The upstream copyright headers are retained in the vendored source;
+the MLX MIT license is included in LICENSES/MLX-MIT.txt.
+
+The vLLM compatibility contract is derived from vLLM v0.29.0:
+  98dff2a81d747d1dba01a47f939f48c3526d4206 (Apache-2.0).
+The FA2-style interface follows flash-attention v2.8.3.post1 (BSD-3-Clause).
+Those projects are references, not runtime dependencies or endorsements.

@@ -1,0 +1,6 @@
+include LICENSE NOTICE
+recursive-include LICENSES *
+recursive-include flash_attn_mps/kernels *.metal
+recursive-include tests *.py
+recursive-include benchmarks *.py
+recursive-include docs *.md
