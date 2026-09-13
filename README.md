@@ -8,8 +8,11 @@ integration target. It runs native Metal kernels through PyTorch's MPS stream.
 There is no CPU/SDPA attention fallback, Python loop over requests, or full
 attention-score matrix. Paged kernels read cache pages directly.
 
-Development status: release acceptance is in progress. A `v0.1.0` release
-requires the native tests, model integration, and measured speed gates to pass.
+On the tested M1 Max, 104 native tests and the nano-vLLM model scenarios pass.
+The complete-call release matrix measures 1.19–4.33x speedups over the previous
+MPS SDPA path; Qwen3-0.6B generation measures about 2.66–2.68x. These figures
+apply to the recorded shapes and environment, not all Apple GPUs or workloads.
+See [validation and raw results](docs/validation.md).
 
 ## Runtime
 
@@ -22,6 +25,12 @@ The package name is `flash-attn-mps`; the import is `flash_attn_mps`.
 It does not replace the CUDA `flash_attn` package or patch PyTorch globally.
 
 ## Use
+
+Install the fixed GitHub release (the package is not published to PyPI):
+
+```bash
+python -m pip install 'flash-attn-mps @ https://github.com/SuperMarioYL/flash-attn-mps/releases/download/v0.1.0/flash_attn_mps-0.1.0-py3-none-any.whl'
+```
 
 ```python
 import torch
@@ -62,6 +71,9 @@ not a GPU correctness result. The release validation must run on real MPS
 hardware with CPU fallback disabled. The benchmark includes cache writes,
 metadata, and synchronization for both implementations, reports all rounds,
 and does not count a diagnostic `--quick` run as the release gate.
+The wheel also installs these tests, benchmarks, and validation data under
+`sys.prefix/share/flash-attn-mps`, so the published artifact can be verified
+without importing code from a source checkout.
 
 To validate the integrated nano-vLLM checkout:
 
@@ -75,6 +87,12 @@ python benchmarks/validate_nanovllm.py --model /path/to/Qwen3-0.6B \
 The correctness harness checks teacher-forced logits and greedy choices,
 including prefix reuse, chunking, cross-page decode, and preemption. The
 performance mode omits logit comparison and reports real generation timings.
+Kernel tests keep their fixed pointwise dtype tolerances. Model acceptance
+requires finite logits, identical greedy choices, and per-request/per-step
+`KL(P_SDPA || P_native) <= 1e-3` nats at temperature 1.0. Raw logit errors are
+also reported; they are not expected to be bitwise identical through 28 FP16
+layers. `--fp64-reference` optionally records an independent FP64-attention
+trajectory without claiming that the entire model runs in FP64.
 
 ## License and sources
 

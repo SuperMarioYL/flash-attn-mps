@@ -34,6 +34,12 @@ version = {attr = "flash_attn_mps.__version__"}
 [tool.setuptools.package-data]
 flash_attn_mps = ["kernels/*.metal", "kernels/vendor/*.metal"]
 
+[tool.setuptools.data-files]
+"share/flash-attn-mps/tests" = ["tests/*.py"]
+"share/flash-attn-mps/benchmarks" = ["benchmarks/*.py"]
+"share/flash-attn-mps/docs" = ["docs/*.md"]
+"share/flash-attn-mps/docs/results" = ["docs/results/*.json", "docs/results/*.xml"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["mps: requires a real Apple Silicon MPS device"]

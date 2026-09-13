@@ -20,6 +20,8 @@ def check(directory):
         for required in ('LICENSE', 'NOTICE'):
             assert any(name.endswith('/' + required) or name == required for name in files), (label, required)
         assert any('LICENSES/' in name for name in files), f'{label} is missing upstream licenses'
+        for required in ('tests/test_attention_core.py', 'benchmarks/validate_nanovllm.py'):
+            assert any(name.endswith('/' + required) for name in files), f'{label} is missing {required}'
         print(label, 'OK:', len(shaders), 'shader source files')
 
 

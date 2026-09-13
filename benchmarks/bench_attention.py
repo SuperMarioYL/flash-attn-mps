@@ -21,7 +21,7 @@ from torch.nn.attention.bias import causal_lower_right
 from flash_attn_mps import flash_attn_varlen_func, flash_attn_with_kvcache, store_kvcache
 
 
-def sdpa_baseline(q, k, v, kc, vc, context):
+def sdpa_baseline(q, k, v, kc, vc, context, attention_fn=F.scaled_dot_product_attention):
     """Frozen behavior of nano-vLLM macos forward_mps before native integration."""
     if kc.numel():
         slots = context.slot_mapping.long()
@@ -46,7 +46,7 @@ def sdpa_baseline(q, k, v, kc, vc, context):
             value = vc[blocks].flatten(0, 1)[:length]
         else:
             key, value = k[start:end], v[start:end]
-        output = F.scaled_dot_product_attention(
+        output = attention_fn(
             query, key.transpose(0, 1).unsqueeze(0), value.transpose(0, 1).unsqueeze(0),
             attn_mask=causal_lower_right(end - start, length), scale=0.08838834764831845,
             enable_gqa=True,
