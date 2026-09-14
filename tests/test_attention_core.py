@@ -96,3 +96,54 @@ def test_fp8_paged_decode_matches_dequantized_reference(device):
                                  k_descale=scale,v_descale=scale)
     assert_attention_close(out,ref)
     assert_attention_close(lse,refl,torch.float32)
+
+
+@pytest.mark.parametrize('window,causal', [((0,0),True),((15,2),False),((-1,7),False),((127,-1),True)])
+def test_window_tile_bounds_with_empty_splits_and_sink(device,window,causal):
+    q=torch.randn(71,4,32,device=device,dtype=torch.float16)
+    k=torch.randn(307,2,32,device=device,dtype=torch.float16)
+    v=torch.randn_like(k)
+    cq=torch.tensor([0,3,38,71],device=device,dtype=torch.int32)
+    ck=torch.tensor([0,300,300,307],device=device,dtype=torch.int32)
+    sinks=torch.tensor([-2.,0.,1.,3.],device=device)
+    out,lse=attention(q,k,v,cu_seqlens_q=cq,cu_seqlens_k=ck,max_seqlen_q=35,
+        max_seqlen_k=300,window_size=window,causal=causal,s_aux=sinks,num_splits=3)
+    ref,refl=attention_reference(q,k,v,cq,ck,window=window,causal=causal,sinks=sinks)
+    assert_attention_close(out,ref)
+    assert_attention_close(lse,refl,torch.float32)
+
+
+def test_generic_shader_reused_across_lengths_and_window_widths(device):
+    from flash_attn_mps._attention import _library
+    q=torch.randn(3,4,64,device=device,dtype=torch.float16)
+    k=torch.randn(1025,2,64,device=device,dtype=torch.float16)
+    v=torch.randn(1025,2,32,device=device,dtype=torch.float16)
+    cq=torch.tensor([0,3],device=device,dtype=torch.int32)
+    misses=None
+    for length,width in ((513,15),(769,63),(1025,127)):
+        ck=torch.tensor([0,length],device=device,dtype=torch.int32)
+        out,lse=attention(q,k,v,cu_seqlens_q=cq,cu_seqlens_k=ck,max_seqlen_q=3,
+            max_seqlen_k=length,window_size=(width,0),causal=True)
+        ref,refl=attention_reference(q,k,v,cq,ck,window=(width,0),causal=True)
+        assert_attention_close(out,ref)
+        assert_attention_close(lse,refl,torch.float32)
+        if misses is not None:
+            assert _library.cache_info().misses==misses
+        misses=_library.cache_info().misses
+
+
+@pytest.mark.parametrize('dtype,dim', [(torch.float16,128),(torch.bfloat16,64),(torch.float32,256)])
+@pytest.mark.parametrize('causal', [True,False])
+def test_fast_softcap_preserves_masked_rows_and_lse(device,dtype,dim,causal):
+    q=torch.randn(73,4,dim,device=device,dtype=dtype)*3
+    k=torch.randn(100,2,dim,device=device,dtype=dtype)*3
+    v=torch.randn_like(k)
+    cq=torch.tensor([0,3,38,73],device=device,dtype=torch.int32)
+    ck=torch.tensor([0,0,97,100],device=device,dtype=torch.int32)
+    # cap=1 must remain a real cap; it was an unused upstream disable sentinel.
+    for cap in (.25,1.,3.):
+        out,lse=attention(q,k,v,cu_seqlens_q=cq,cu_seqlens_k=ck,max_seqlen_q=35,
+            max_seqlen_k=97,causal=causal,softcap=cap)
+        ref,refl=attention_reference(q,k,v,cq,ck,causal=causal,softcap=cap)
+        assert_attention_close(out,ref,dtype)
+        assert_attention_close(lse,refl,torch.float32)

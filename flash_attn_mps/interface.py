@@ -5,8 +5,16 @@ and rotary position selection remain explicit; all attention math runs in Metal.
 """
 
 from dataclasses import dataclass
+from functools import lru_cache
 
 import torch
+
+
+@lru_cache(maxsize=64)
+def _uniform_offsets(batch, length, device):
+    """Read-only metadata shared by layers with the same dense batch shape."""
+    offsets = torch.arange(batch + 1, device=device, dtype=torch.int32)
+    return offsets if length == 1 else offsets * length
 
 
 @dataclass(frozen=True)
@@ -171,8 +179,8 @@ def flash_attn_func(
         raise ValueError("dense attention requires matching 4D batches")
     batch, sq = q.shape[:2]
     sk = k.shape[1]
-    cu_q = torch.arange(batch + 1, device=q.device, dtype=torch.int32) * sq
-    cu_k = torch.arange(batch + 1, device=q.device, dtype=torch.int32) * sk
+    cu_q = _uniform_offsets(batch, sq, q.device)
+    cu_k = _uniform_offsets(batch, sk, q.device)
     out, lse = flash_attn_varlen_func(
         _reshape(q, -1, *q.shape[2:]), _reshape(k, -1, *k.shape[2:]),
         _reshape(v, -1, *v.shape[2:]), cu_q, cu_k, sq, sk,
@@ -286,7 +294,7 @@ def flash_attn_with_kvcache(
         max_k = table.shape[1] * k_cache.shape[1]
     if cache_leftpad is not None:
         lengths = lengths - cache_leftpad
-    cu_q = torch.arange(batch + 1, device=q.device, dtype=torch.int32) * sq
+    cu_q = _uniform_offsets(batch, sq, q.device)
     out, lse = _run(
         _reshape(q, -1, *q.shape[2:]), k_cache, v_cache,
         cu_seqlens_q=cu_q, seqused_k=lengths, max_seqlen_q=sq,

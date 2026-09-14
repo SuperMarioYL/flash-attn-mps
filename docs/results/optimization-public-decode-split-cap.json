@@ -1,0 +1,72 @@
+{
+  "source_sha256": {
+    "flash_attn_mps/_decode.py": "3a1e76efc6060e5f60014bf115f26572c79c16587bfadae5bb28d39589dde59a",
+    "flash_attn_mps/kernels/attention_decode.metal": "7044256bf159831fb620b5b603ce25041beb0803d1ffb8da9ae520faed66b51c"
+  },
+  "note": "Same symmetric split-forcing wrapper overhead on both native choices; SDPA has no wrapper. Prepared views and metadata; public compute APIs; no production edits.",
+  "cases": [
+    {
+      "batch": 1,
+      "klen": 8192,
+      "rounds": [
+        {
+          "split32": 0.39741650107316673,
+          "split16": 0.40100052137859166,
+          "sdpa": 0.3549164975993335
+        },
+        {
+          "split32": 0.35868751001544297,
+          "split16": 0.3605829842854291,
+          "sdpa": 0.31493749702349305
+        },
+        {
+          "split32": 0.33804200938902795,
+          "split16": 0.3426249895710498,
+          "sdpa": 0.30268749105744064
+        }
+      ]
+    },
+    {
+      "batch": 16,
+      "klen": 8192,
+      "rounds": [
+        {
+          "split32": 1.8845004960894585,
+          "split16": 1.884312485344708,
+          "sdpa": 3.1704165157862008
+        },
+        {
+          "split32": 1.8514374969527125,
+          "split16": 1.8492710078135133,
+          "sdpa": 3.219312522560358
+        },
+        {
+          "split32": 1.7709995154291391,
+          "split16": 1.7586249741725624,
+          "sdpa": 3.223541483748704
+        }
+      ]
+    },
+    {
+      "batch": 1,
+      "klen": 32768,
+      "rounds": [
+        {
+          "split32": 0.6393750081770122,
+          "split16": 0.6327290320768952,
+          "sdpa": 0.639041478279978
+        },
+        {
+          "split32": 0.6373960059136152,
+          "split16": 0.6354790239129215,
+          "sdpa": 0.6393959920387715
+        },
+        {
+          "split32": 0.6460625154431909,
+          "split16": 0.6342495034914464,
+          "sdpa": 0.6373750220518559
+        }
+      ]
+    }
+  ]
+}

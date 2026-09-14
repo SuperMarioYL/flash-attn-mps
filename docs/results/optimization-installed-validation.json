@@ -1,0 +1,9 @@
+{
+  "installed_package": "/Users/yulei/workspace/flash-attn-mps/.artifacts/optimization/install-env/lib/python3.12/site-packages/flash_attn_mps",
+  "editable": false,
+  "matches_benchmarked_source": true,
+  "bundled_tests": "/Users/yulei/workspace/flash-attn-mps/.artifacts/optimization/install-env/share/flash-attn-mps/tests",
+  "pytest_exit_code": 0,
+  "torch": "2.14.0",
+  "mps": true
+}

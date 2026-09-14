@@ -1,0 +1,125 @@
+{
+  "torch": "2.14.0",
+  "fallback": "0",
+  "compile": {
+    "backend": "inductor",
+    "fullgraph": true,
+    "dynamic": false
+  },
+  "cases": [
+    {
+      "qlen": 128,
+      "klen": 128,
+      "first_compile_call_s": 1.6976332920021378,
+      "generated_kernels_delta": 0,
+      "output_device": "mps:0",
+      "vs_cpu_fp64": {
+        "max_abs": 0.0009682674849500472,
+        "mean_abs": 3.242794542983749e-05
+      },
+      "sdpa_vs_cpu_fp64": {
+        "max_abs": 0.0009682674849500472,
+        "mean_abs": 3.242795281873595e-05
+      },
+      "vs_sdpa": {
+        "max_abs": 0.00048828125,
+        "mean_abs": 3.2137450034497306e-08
+      },
+      "repeat_equal": true,
+      "passed": true
+    },
+    {
+      "qlen": 2,
+      "klen": 257,
+      "first_compile_call_s": 0.38712633395334706,
+      "generated_kernels_delta": 0,
+      "output_device": "mps:0",
+      "vs_cpu_fp64": {
+        "max_abs": 0.00011933906032290942,
+        "mean_abs": 1.387834070840211e-05
+      },
+      "sdpa_vs_cpu_fp64": {
+        "max_abs": 0.00011933906032290942,
+        "mean_abs": 1.3878303363119749e-05
+      },
+      "vs_sdpa": {
+        "max_abs": 6.103515625e-05,
+        "mean_abs": 2.6688212528824806e-08
+      },
+      "repeat_equal": true,
+      "passed": true
+    },
+    {
+      "qlen": 1,
+      "klen": 257,
+      "first_compile_call_s": 0.29365775000769645,
+      "generated_kernels_delta": 0,
+      "output_device": "mps:0",
+      "vs_cpu_fp64": {
+        "max_abs": 0.0001211087638844921,
+        "mean_abs": 1.4141136274391049e-05
+      },
+      "sdpa_vs_cpu_fp64": {
+        "max_abs": 0.0001211087638844921,
+        "mean_abs": 1.4141059069732535e-05
+      },
+      "vs_sdpa": {
+        "max_abs": 1.52587890625e-05,
+        "mean_abs": 2.3865140974521637e-08
+      },
+      "repeat_equal": true,
+      "passed": true
+    }
+  ],
+  "native_compilation_evidence": [
+    {
+      "path": "/Users/yulei/workspace/flash-attn-mps/.artifacts/operator-comparison/inductor-cache/3e/c3ejhilueb4edfq5f2pwpk66fluze4foe45brkw6zbyalezm2fe6.py",
+      "compile_shader_line": 35,
+      "mma_line": 181,
+      "dispatch_line": 352,
+      "calls_sdpa": false,
+      "cpu_attention_dispatch": false
+    },
+    {
+      "path": "/Users/yulei/workspace/flash-attn-mps/.artifacts/operator-comparison/inductor-cache/3q/c3q53pre2c72iifjvnjouiiuznh7tblx72vom6zjnvowpl62pguh.py",
+      "compile_shader_line": 35,
+      "mma_line": 181,
+      "dispatch_line": 353,
+      "calls_sdpa": false,
+      "cpu_attention_dispatch": false
+    },
+    {
+      "path": "/Users/yulei/workspace/flash-attn-mps/.artifacts/operator-comparison/inductor-cache/td/ctd7ys4sleyrcquq32hfhrozahbkedvtyp6yl2gnga4gomu4eyxo.py",
+      "compile_shader_line": 35,
+      "mma_line": 181,
+      "dispatch_line": 353,
+      "calls_sdpa": false,
+      "cpu_attention_dispatch": false
+    },
+    {
+      "path": "/Users/yulei/workspace/flash-attn-mps/.artifacts/operator-comparison/inductor-cache/3e/c3ejhilueb4edfq5f2pwpk66fluze4foe45brkw6zbyalezm2fe6.debug/output_code.py",
+      "compile_shader_line": 35,
+      "mma_line": 181,
+      "dispatch_line": 352,
+      "calls_sdpa": false,
+      "cpu_attention_dispatch": false
+    },
+    {
+      "path": "/Users/yulei/workspace/flash-attn-mps/.artifacts/operator-comparison/inductor-cache/3q/c3q53pre2c72iifjvnjouiiuznh7tblx72vom6zjnvowpl62pguh.debug/output_code.py",
+      "compile_shader_line": 35,
+      "mma_line": 181,
+      "dispatch_line": 353,
+      "calls_sdpa": false,
+      "cpu_attention_dispatch": false
+    },
+    {
+      "path": "/Users/yulei/workspace/flash-attn-mps/.artifacts/operator-comparison/inductor-cache/td/ctd7ys4sleyrcquq32hfhrozahbkedvtyp6yl2gnga4gomu4eyxo.debug/output_code.py",
+      "compile_shader_line": 35,
+      "mma_line": 181,
+      "dispatch_line": 353,
+      "calls_sdpa": false,
+      "cpu_attention_dispatch": false
+    }
+  ],
+  "generated_kernels_counter_note": "The generic Inductor metric stays zero for this custom MPS template path. Native compilation is established by emitted compile_mps_shader/MSL/MMA/direct dispatch source, not this counter."
+}

@@ -110,6 +110,12 @@ kernel void attention_tiled(
   // Skip whole tiles beyond a causal query tile when no mask override is active.
   if (causal && p[MASK]==0)
     last=min(last,max(0,(min(q_block+BQ,q_len)+k_len-q_len+BK-1)/BK));
+  // The whole query tile shares these outer bounds. Per-row masking still
+  // handles its boundary tiles; modality/prefix masks may admit distant keys.
+  if (p[MASK]==0 && p[WIN_L]>=0)
+    first=max(first,max(0,(q_block+k_len-q_len-int(p[WIN_L]))/BK));
+  if (p[MASK]==0 && p[WIN_R]>=0)
+    last=min(last,max(0,(min(q_block+BQ,q_len)+k_len-q_len+int(p[WIN_R])+BK-1)/BK));
   for (int kb=first; kb<last; ++kb) {
     threadgroup_barrier(mem_flags::mem_threadgroup);
     for (int z=tid; z<BK*BD; z+=WM*32) {

@@ -18,10 +18,12 @@ _TYPES = {
     torch.float16: 'half', torch.bfloat16: 'bfloat', torch.float32: 'float',
     torch.float8_e4m3fn: 'uchar',
 }
+# Kernel variants depend on features, never sequence lengths or tensor values.
+_STATIC_META = 'PAGED CUK USED CAUSAL DYNAMIC ALIBI SINK QDS KDS VDS MASK CLAMP LEFTPAD'.split()
 
 
 @lru_cache(maxsize=96)
-def _library(qdtype, kdtype, vdtype, odtype, dq, dv):
+def _library(qdtype, kdtype, vdtype, odtype, dq, dv, specialization, softcap):
     root = Path(__file__).parent / 'kernels'
     # Keep common FP16/BF16 tiles in their native type to preserve occupancy.
     # Mixed precision uses FP32 staging so values retain their exponent range.
@@ -43,16 +45,21 @@ def _library(qdtype, kdtype, vdtype, odtype, dq, dv):
         start = body.index('kernel void attention_tiled(')
         end = body.index('// SIMD-vector online softmax')
         body = body[:start] + body[end:]
+    for name, value in (('DQ', dq), ('DV', dv), *specialization):
+        body = body.replace(f'p[{name}]', str(value))
+    if not softcap:
+        body = body.replace('f[1]', '0.0f')
     return torch.mps.compile_shader(source + body), bq, wm
 
 
 @lru_cache(maxsize=32)
-def _fast_library(dtype, dim, causal):
+def _fast_library(dtype, dim, causal, softcap=False):
     root = Path(__file__).parent / 'kernels'
     bq, bk, wm = (32, 16, 4) if dim <= 128 else (16, 8, 2)
     body = (root / 'attention_fast.metal').read_text()
     for key, value in dict(TYPE=_TYPES[dtype], D=dim, BQ=bq, BK=bk, WM=wm,
-                           CAUSAL='true' if causal else 'false').items():
+                           CAUSAL='true' if causal else 'false',
+                           SOFTCAP='true' if softcap else 'false').items():
         body = body.replace(f'__{key}__', str(value))
     source = (root / 'vendor' / 'steel.metal').read_text()
     source += 'enum { ' + ', '.join(_META) + ' };\n' + body
@@ -117,20 +124,34 @@ def attention(
         raise ValueError('out must have shape [total_q, query_heads, value_dim] on MPS')
     if out.dtype not in (torch.float16, torch.bfloat16, torch.float32):
         raise TypeError('out must have FP16, BF16 or FP32 dtype')
-    lse = torch.empty((heads, tokens), device=q.device, dtype=torch.float32)
     if tokens == 0:
-        return out, lse
+        return out, torch.empty((heads, 0), device=q.device, dtype=torch.float32)
     if max_seqlen_q <= 0 or max_seqlen_k < 0:
         raise ValueError('nonempty q requires positive max_seqlen_q and nonnegative max_seqlen_k')
     batch = cu_seqlens_q.numel() - 1
     if batch < 1:
         raise ValueError('cu_seqlens_q must contain at least two offsets')
+    if (max_seqlen_q == 1 and not deterministic
+            and alibi_slopes is None and mask_mod is None
+            and (isinstance(causal, bool) or isinstance(causal, torch.Tensor))):
+        # A single right-aligned query has no future keys, for either causal
+        # value. Partition its visible KV instead of padding 31 query rows.
+        from ._decode import decode_attention
+        return decode_attention(
+            q, k, v, cu_seqlens_q=cu_seqlens_q, cu_seqlens_k=cu_seqlens_k,
+            seqused_k=seqused_k, max_seqlen_k=max_seqlen_k,
+            block_table=block_table, softmax_scale=softmax_scale, out=out,
+            leftpad_k=leftpad_k, num_splits=num_splits,
+            s_aux=s_aux, q_descale=q_descale, k_descale=k_descale,
+            v_descale=v_descale, window_size=window_size, softcap=softcap,
+        )
+    lse = torch.empty((heads, tokens), device=q.device, dtype=torch.float32)
     fast = (not deterministic and num_splits in (0, 1)
             and q.dtype == k.dtype == v.dtype == out.dtype
             and q.dtype != torch.float8_e4m3fn and dq == dv
             and dq in (32,64,72,80,96,128,256) and not isinstance(causal, torch.Tensor)
             and window_size[0] == window_size[1] == -1
-            and alibi_slopes is None and s_aux is None and softcap == 0
+            and alibi_slopes is None and s_aux is None
             and q_descale is None and k_descale is None and v_descale is None
             and mask_mod is None and leftpad_k is None
             and q.stride(-1) == k.stride(-1) == v.stride(-1) == out.stride(-1) == 1
@@ -191,14 +212,17 @@ def attention(
     _strides(params, ranges, ('MR0','MR1'))
     _strides(params, prefix, ('MP0',))
     if fast:
-        lib,bq,wm = _fast_library(q.dtype,dq,bool(causal))
+        lib,bq,wm = _fast_library(q.dtype,dq,bool(causal),softcap > 0)
         lib.fast_attention(q,k,v,out,tuple(params[name] for name in _META),
-                           (float(softmax_scale if softmax_scale is not None else dq**-.5),),
+                           (float(softmax_scale if softmax_scale is not None else dq**-.5),float(softcap)),
                            _dummy(),cq,ck,lse,table,used,
                            threads=(((max_seqlen_q+bq-1)//bq)*32,heads*wm,batch),
                            group_size=(32,wm,1))
         return out,lse
-    lib, bq, wm = _library(q.dtype, k.dtype, v.dtype, target.dtype, dq, dv)
+    specialization = tuple((name, params[name]) for name in _STATIC_META)
+    specialization += tuple((name, -1) for name in ('WIN_L', 'WIN_R') if params[name] < 0)
+    lib, bq, wm = _library(q.dtype, k.dtype, v.dtype, target.dtype, dq, dv,
+                           specialization, softcap > 0)
     args = (q,k,v,target,target_lse,tuple(params[name] for name in _META),
             (float(softmax_scale if softmax_scale is not None else dq**-0.5),float(softcap)),
             cq,ck,used,table,ca,alibi,sink,qds,kds,vds,ranges,prefix,window,lp)

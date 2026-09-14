@@ -14,6 +14,13 @@ MPS SDPA path; Qwen3-0.6B generation measures about 2.66–2.68x. These figures
 apply to the recorded shapes and environment, not all Apple GPUs or workloads.
 See [validation and raw results](docs/validation.md).
 
+The unreleased `main` branch adds specialized paged decode and
+improves DiffKV, windowed attention and softcap. See the
+[same-machine comparison and optimization report](docs/performance-optimization.md)
+for comparisons with SDPA, HF Metal and mtlflashattn, including the remaining
+FP32 decode gap and complete Qwen3-0.6B measurements. The published v0.1.0
+artifacts retain their original implementation.
+
 ## Runtime
 
 - Apple Silicon with an available PyTorch MPS device

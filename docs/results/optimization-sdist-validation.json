@@ -1,0 +1,19 @@
+{
+  "sdist_built_installed": true,
+  "editable": false,
+  "matches_benchmarked_source": true,
+  "torch": "2.14.0",
+  "mps": true,
+  "checks": [
+    {
+      "query_length": 1,
+      "max_abs_error": 9.267425335474089e-05,
+      "mean_abs_error": 1.693531831633081e-05
+    },
+    {
+      "query_length": 3,
+      "max_abs_error": 0.00011394245017959381,
+      "mean_abs_error": 1.824356648738762e-05
+    }
+  ]
+}

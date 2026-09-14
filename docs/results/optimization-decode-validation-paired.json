@@ -1,0 +1,160 @@
+{
+  "removed_duplicates": [
+    "q.device.type != 'mps' or k.device != q.device or v.device != q.device",
+    "any((tensor.dtype not in _DTYPES for tensor in (q, k, v)))",
+    "q.ndim != 3 or k.ndim not in (3, 4) or v.ndim != k.ndim",
+    "k.shape[:-1] != v.shape[:-1] or k.shape[-1] != dq or (not (1 <= dq <= 512 and 1 <= dv <= 512))",
+    "not kvheads or not heads or heads % kvheads",
+    "(k.ndim == 4) != (block_table is not None)",
+    "cu_seqlens_k is None and seqused_k is None",
+    "max_seqlen_k < 0 or num_splits < 0 or softcap < 0",
+    "len(window_size) != 2 or min(window_size) < -1",
+    "out.shape != (tokens, heads, dv) or out.device != q.device or out.dtype not in (torch.float16, torch.bfloat16, torch.float32)",
+    "for name, tensor in (('q_descale', q_descale), ('k_descale', k_descale), ('v_descale', v_descale)):\n    if tensor is not None and (tensor.device != q.device or tensor.dtype != torch.float32 or tensor.shape != (batch, kvheads)):\n        raise ValueError(f'{name} must be an MPS FP32 [B,Hkv] tensor')",
+    "s_aux is not None and (s_aux.device != q.device or s_aux.shape != (heads,))"
+  ],
+  "retained": [
+    "tokens > batch",
+    "leftpad conversion",
+    "sink.float conversion"
+  ],
+  "boundary_checks": [
+    {
+      "name": "cpu_query",
+      "rejected": true,
+      "error": "q must be an MPS tensor"
+    },
+    {
+      "name": "query_int32",
+      "rejected": true,
+      "error": "attention supports FP16, BF16, FP32 and FP8 E4M3FN"
+    },
+    {
+      "name": "wrong_k_dimension",
+      "rejected": true,
+      "error": "Q/K head dimensions and K/V token/head dimensions must match"
+    },
+    {
+      "name": "wrong_v_tokens",
+      "rejected": true,
+      "error": "Q/K head dimensions and K/V token/head dimensions must match"
+    },
+    {
+      "name": "nondivisible_heads",
+      "rejected": true,
+      "error": "query heads must be divisible by KV heads"
+    },
+    {
+      "name": "cpu_cuq",
+      "rejected": true,
+      "error": "cu_seqlens_q must be an MPS int32 tensor of shape (2,)"
+    },
+    {
+      "name": "cuq_int64",
+      "rejected": true,
+      "error": "cu_seqlens_q must be int32 [batch+1]"
+    },
+    {
+      "name": "missing_key_lengths",
+      "rejected": true,
+      "error": "provide exactly one of cu_seqlens_k and seqused_k"
+    },
+    {
+      "name": "negative_max_k",
+      "rejected": true,
+      "error": "softcap, lengths, and num_splits must be nonnegative"
+    },
+    {
+      "name": "negative_split",
+      "rejected": true,
+      "error": "softcap, lengths, and num_splits must be nonnegative"
+    },
+    {
+      "name": "negative_softcap",
+      "rejected": true,
+      "error": "softcap, lengths, and num_splits must be nonnegative"
+    },
+    {
+      "name": "invalid_window",
+      "rejected": true,
+      "error": "window_size must contain two bounds >= -1"
+    },
+    {
+      "name": "invalid_out_shape",
+      "rejected": true,
+      "error": "out must have shape [total_q, query_heads, value_head_dim] on MPS"
+    },
+    {
+      "name": "invalid_out_dtype",
+      "rejected": true,
+      "error": "out must have FP16, BF16 or FP32 dtype"
+    },
+    {
+      "name": "invalid_descale_shape",
+      "rejected": true,
+      "error": "k_descale must be an MPS float32 [B,Hkv] tensor"
+    },
+    {
+      "name": "invalid_sink_shape",
+      "rejected": true,
+      "error": "s_aux must be an MPS [Hq] tensor"
+    },
+    {
+      "name": "dropout",
+      "rejected": true,
+      "error": "flash-attn-mps implements inference; dropout_p must be 0"
+    },
+    {
+      "name": "training",
+      "rejected": true,
+      "error": "flash-attn-mps implements inference without backward"
+    },
+    {
+      "name": "decode_only_token_bound",
+      "rejected": true,
+      "error": "decode accepts at most one query per request"
+    }
+  ],
+  "paired": [
+    {
+      "output": "allocate",
+      "rounds": [
+        {
+          "original": 0.34514599246904254,
+          "candidate": 0.3437710111029446,
+          "sdpa": 0.313062482746318
+        },
+        {
+          "original": 0.34085402148775756,
+          "candidate": 0.33589600934647024,
+          "sdpa": 0.2995419781655073
+        },
+        {
+          "original": 0.37233298644423485,
+          "candidate": 0.3664579999167472,
+          "sdpa": 0.3337505040690303
+        }
+      ]
+    },
+    {
+      "output": "cached_out",
+      "rounds": [
+        {
+          "original": 0.3649374993983656,
+          "candidate": 0.3625834942795336,
+          "sdpa": 0.32025002292357385
+        },
+        {
+          "original": 0.3339374961797148,
+          "candidate": 0.3301044926047325,
+          "sdpa": 0.3026045160368085
+        },
+        {
+          "original": 0.32929203007370234,
+          "candidate": 0.33529201755300164,
+          "sdpa": 0.29612501384690404
+        }
+      ]
+    }
+  ]
+}

@@ -9,7 +9,7 @@ struct AttnParams {
 
   int gqa_factor; ///< Group Query factor
   float scale; ///< Attention scale
-  float softcapping; ///< Softcapping value (1.0 for no softcapping)
+  float softcapping; ///< Softcapping value (0 disables the compile-time branch)
 
   int NQ; ///< Number of query blocks
   int NK; ///< Number of key/value blocks
@@ -46,16 +46,7 @@ constant bool align_K = false;
 
 constant bool has_mask = false;
 constant bool do_causal = __CAUSAL__;
-
-template <typename T>
-struct TransformScale {
-  T scale;
-  METAL_FUNC TransformScale(T scale_) : scale(scale_) {}
-
-  METAL_FUNC T apply(T x) const {
-    return scale * x;
-  }
-};
+constant bool do_softcap = __SOFTCAP__;
 
 struct MaxOp {
   template <typename T>
@@ -129,7 +120,7 @@ template <
   AttnParams data = {};
   thread AttnParams* params = &data;
   params->H=p[HQ]; params->D=p[DQ]; params->gqa_factor=p[HQ]/p[HK];
-  params->scale=scalars[0]; params->softcapping=1.0f;
+  params->scale=scalars[0]; params->softcapping=scalars[1];
   const constant AttnMaskParams* mask_params = nullptr;
   // Pacifying compiler
   (void)lid;
@@ -233,13 +224,6 @@ template <
       K, kv_stride, Ks, simd_group_id, simd_lane_id);
   VBlockLoader loader_v(
       V, p[VS1], Vs, simd_group_id, simd_lane_id);
-
-  // Apply softcapping adjustment to scale if needed
-  float adjusted_scale = params->scale;
-  if (params->softcapping != 1.0f) {
-    adjusted_scale = params->scale / params->softcapping;
-  }
-  TransformScale<T> ts(static_cast<T>(adjusted_scale * 1.44269504089));
 
   // Prepare MMA tiles
   constexpr short kFragSize = 8; // MMAFrag size
@@ -384,10 +368,26 @@ template <
       tile_matmad(Stile, Qtile, Ktile, Stile);
     }
 
-    AccumType score_scale[kRowsPT];
-    STEEL_PRAGMA_UNROLL
-    for (short i=0; i<kRowsPT; ++i) score_scale[i]=adjusted_scale*1.44269504089f;
-    Stile.template row_bin_op<MulOp>(score_scale);
+    // Softcap operates on natural scores before masking. Applying tanh after
+    // the mask would turn -infinity into a finite, attended score.
+    if (do_softcap) {
+      using score_tile = decltype(Stile);
+      STEEL_PRAGMA_UNROLL
+      for (short i=0;i<score_tile::kTileRows;++i) {
+        STEEL_PRAGMA_UNROLL
+        for(short j=0;j<score_tile::kTileCols;++j) {
+          STEEL_PRAGMA_UNROLL
+          for(short e=0;e<score_tile::MMAFrag_t::kElemsPerFrag;++e)
+            Stile.frag_at(i,j)[e]=params->softcapping * precise::tanh(
+                Stile.frag_at(i,j)[e]*params->scale/params->softcapping)*1.44269504089f;
+        }
+      }
+    } else {
+      AccumType score_scale[kRowsPT];
+      STEEL_PRAGMA_UNROLL
+      for (short i=0; i<kRowsPT; ++i) score_scale[i]=params->scale*1.44269504089f;
+      Stile.template row_bin_op<MulOp>(score_scale);
+    }
 
     // Mask out length sequence
     if (k_block_size < BK) {
@@ -480,24 +480,6 @@ template <
             } else {
               Stile.frag_at(i, j)[jj] += selem_t(mfrag[jj]);
             }
-          }
-        }
-      }
-    }
-
-    // Apply softcapping if needed (tanh(score) * softcapping)
-    if (params->softcapping != 1.0f) {
-      using stile_t = decltype(Stile);
-      using selem_t = typename stile_t::elem_type;
-      const selem_t softcapping_val = static_cast<selem_t>(params->softcapping);
-      
-      STEEL_PRAGMA_UNROLL
-      for (short i = 0; i < stile_t::kTileRows; i++) {
-        STEEL_PRAGMA_UNROLL
-        for (short j = 0; j < stile_t::kTileCols; j++) {
-          STEEL_PRAGMA_UNROLL
-          for (short jj = 0; jj < stile_t::MMAFrag_t::kElemsPerFrag; jj++) {
-            Stile.frag_at(i, j)[jj] = metal::tanh(Stile.frag_at(i, j)[jj]) * softcapping_val;
           }
         }
       }

@@ -37,6 +37,44 @@ def test_dense_lower_right_and_empty(device, sq, sk):
     assert_attention_close(lse.transpose(0,1).reshape(4,-1),refl)
 
 
+def test_dense_interleaved_shapes_and_fresh_values(device):
+    # Reusing immutable offsets must not retain inputs or a previous batch's
+    # boundaries when layers alternate between shapes.
+    for batch, sq, sk in ((2,3,5), (1,7,4), (2,3,5), (3,1,17)):
+        q = torch.randn(batch,sq,4,32,device=device,dtype=torch.float16)
+        k = torch.randn(batch,sk,2,32,device=device,dtype=torch.float16)
+        v = torch.randn_like(k)
+        out = flash_attn_func(q,k,v,causal=True)
+        cuq = torch.arange(batch+1,dtype=torch.int32)*sq
+        cuk = torch.arange(batch+1,dtype=torch.int32)*sk
+        ref,_ = attention_reference(q.flatten(0,1),k.flatten(0,1),v.flatten(0,1),
+                                    cuq,cuk,causal=True)
+        assert_attention_close(out.flatten(0,1),ref)
+
+
+def test_decode_public_validation_precedes_shader_dispatch(device,monkeypatch):
+    from flash_attn_mps import _decode
+    from flash_attn_mps.vllm import flash_attn_varlen_func as vllm_attention
+    q=torch.randn(1,4,32,device=device,dtype=torch.float16)
+    k=torch.randn(17,2,32,device=device,dtype=torch.float16)
+    cq=torch.tensor([0,1],device=device,dtype=torch.int32)
+    ck=torch.tensor([0,17],device=device,dtype=torch.int32)
+    base=dict(q=q,k=k,v=k,cu_seqlens_q=cq,cu_seqlens_k=ck,
+              max_seqlen_q=1,max_seqlen_k=17)
+    def forbidden(*args,**kwargs):
+        pytest.fail('invalid public input reached shader preparation')
+    monkeypatch.setattr(_decode,'_shader',forbidden)
+    for change in (
+        dict(q=q.int()), dict(cu_seqlens_q=cq.long()), dict(k=k[...,:16]),
+        dict(out=torch.empty_like(q,dtype=torch.int32)),
+        dict(k_descale=torch.ones(1,1,device=device)),
+        dict(s_aux=torch.ones(2,device=device)), dict(window_size=(-2,0)),
+        dict(q=q.expand(2,-1,-1)),
+    ):
+        with pytest.raises((ValueError,TypeError)):
+            vllm_attention(**(base|change))
+
+
 def test_packed_entrypoints(device):
     qkv = torch.randn(2,7,3,4,32,device=device,dtype=torch.float16)
     expected = flash_attn_func(qkv[:,:,0],qkv[:,:,1],qkv[:,:,2],causal=True)

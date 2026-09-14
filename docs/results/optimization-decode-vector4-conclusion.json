@@ -1,0 +1,24 @@
+{
+  "retained": false,
+  "reason": "No consistent useful improvement; restored production files exactly to pre-experiment snapshots.",
+  "summary": [
+    {
+      "batch": 1,
+      "median_of_round_medians_ms": {
+        "old": 0.3356875095050782,
+        "vector4": 0.3365625161677599,
+        "sdpa": 0.3142290224786848
+      },
+      "vector4_speedup": 0.9974001660296432
+    },
+    {
+      "batch": 16,
+      "median_of_round_medians_ms": {
+        "old": 1.7867704737000167,
+        "vector4": 1.781562517862767,
+        "sdpa": 3.2227705232799053
+      },
+      "vector4_speedup": 1.0029232518000533
+    }
+  ]
+}

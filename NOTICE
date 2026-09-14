@@ -17,3 +17,7 @@ The vLLM compatibility contract is derived from vLLM v0.29.0:
   98dff2a81d747d1dba01a47f939f48c3526d4206 (Apache-2.0).
 The FA2-style interface follows flash-attention v2.8.3.post1 (BSD-3-Clause).
 Those projects are references, not runtime dependencies or endorsements.
+
+The segmented decode reduction design additionally follows PyTorch v2.14.0
+aten/src/ATen/native/mps/kernels/DecodeAttention.h (BSD-3-Clause), itself
+adapted from MLX. The PyTorch license is included in LICENSES/PYTORCH-BSD.txt.
